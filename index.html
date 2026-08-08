@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            transition: background-color 0.2s; 
+        }
+
+        .container {
+            text-align: center;
+            background: white;
+            padding: 50px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 300px;
+            position: relative; /* Needed to position the score */
+        }
+
+        /* New Style for the Score Board */
+        #score-board {
+            font-size: 24px;
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+
+        h1 { margin: 10px 0; color: #333; font-size: 24px;}
+
+        .box-label { font-size: 18px; color: #666; margin-top: 20px;}
+
+        #target-letter {
+            font-size: 100px;
+            font-weight: bold;
+            color: #333;
+            margin: 10px 0;
+            border-bottom: 5px solid #333;
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        #feedback-msg {
+            font-weight: bold;
+            height: 30px; 
+            font-size: 18px;
+        }
+
+        .correct-bg { background-color: #d4edda !important; } 
+        .wrong-bg { background-color: #f8d7da !important; }   
+        
+        .correct-text { color: #155724; }
+        .wrong-text { color: #721c24; }
+    </style>
+</head>
+<body id="main-body">
+
+    <div class="container">
+        <div id="score-board">Score: 0</div>
+
+        <h1>Type the Letter!</h1>
+        
+        <div class="box-label">Target Letter:</div>
+        <div id="target-letter">A</div>
+        
+        <div id="feedback-msg">Press the key...</div>
+    </div>
+
+    <script>
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let currentTarget = "A"; 
+        
+        // 1. NEW: Create a variable to hold the score number in memory
+        let score = 0; 
+
+        const targetDisplay = document.getElementById('target-letter');
+        const feedbackDisplay = document.getElementById('feedback-msg');
+        const bodyElement = document.getElementById('main-body');
+        const scoreDisplay = document.getElementById('score-board'); // Grab the HTML element
+
+        function nextLevel() {
+            const randomIndex = Math.floor(Math.random() * letters.length);
+            currentTarget = letters[randomIndex];
+            targetDisplay.innerText = currentTarget;
+        }
+
+        document.addEventListener('keydown', function(event) {
+            const keyTyped = event.key.toUpperCase();
+
+            if (keyTyped === currentTarget) {
+                // SUCCESS LOGIC
+                
+                // 2. NEW: Increase the score variable by 1
+                score = score + 1;
+
+                // 3. NEW: Update the screen to show the new number
+                scoreDisplay.innerText = "Score: " + score;
+
+                feedbackDisplay.innerText = "Correct!";
+                feedbackDisplay.className = "correct-text";
+                bodyElement.classList.add("correct-bg");
+                bodyElement.classList.remove("wrong-bg");
+                nextLevel();
+
+            } else {
+                // FAIL LOGIC (Optional: You could decrease score here if you wanted!)
+                feedbackDisplay.innerText = "Try Again!";
+                feedbackDisplay.className = "wrong-text";
+                bodyElement.classList.add("wrong-bg");
+                bodyElement.classList.remove("correct-bg");
+            }
+        });
+        
+        nextLevel();
+    </script>
+
+</body>
+</html>
