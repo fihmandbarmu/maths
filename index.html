@@ -123,7 +123,7 @@
       border: 6px solid #000;
       border-radius: 25px;
       padding: 25px;
-      max-width: 680px;
+      max-width: 780px;
       width: 100%;
       box-shadow: 8px 8px 0px #000;
       display: flex;
@@ -150,6 +150,9 @@
       cursor: pointer;
       box-shadow: 3px 3px 0px #000;
       transition: transform 0.1s;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
     }
 
     .btn:active {
@@ -157,6 +160,12 @@
       box-shadow: 1px 1px 0px #000;
     }
 
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-red { background-color: var(--primary); color: white; }
     .btn-orange { background-color: #FF914D; }
     .btn-purple { background-color: #B28DFF; }
     .btn-green { background-color: var(--correct); }
@@ -172,10 +181,13 @@
       font-weight: bold;
       text-align: center;
       align-items: center;
+      overflow-x: auto;
+      max-width: 100%;
+      padding-bottom: 5px;
     }
 
     .place-header {
-      font-size: 1rem;
+      font-size: 0.95rem;
       color: #555;
       background: #E8E8E8;
       border-radius: 8px;
@@ -272,7 +284,7 @@
 
     @media (max-width: 1050px) {
       .main-wrapper { flex-direction: column; align-items: center; }
-      .side-panel { width: 100%; max-width: 680px; }
+      .side-panel { width: 100%; max-width: 780px; }
       #history-list { flex-direction: row; overflow-x: auto; max-height: 100px; }
       .history-item { flex-shrink: 0; padding: 10px 20px;}
     }
@@ -309,27 +321,35 @@
         <button class="btn btn-red" onclick="setMode('add2')">+ 2-Digit</button>
         <button class="btn btn-red" onclick="setMode('add3')">+ 3-Digit</button>
         <button class="btn btn-red" onclick="setMode('add4')">+ 4-Digit</button>
+        <button class="btn btn-red" onclick="setMode('add5')">+ 5-Digit</button>
+        <button class="btn btn-red" onclick="setMode('add6')">+ 6-Digit</button>
       </div>
       <div class="nav-buttons">
         <button class="btn btn-orange" onclick="setMode('sub2')">- 2-Digit</button>
         <button class="btn btn-orange" onclick="setMode('sub3')">- 3-Digit</button>
         <button class="btn btn-orange" onclick="setMode('sub4')">- 4-Digit</button>
+        <button class="btn btn-orange" onclick="setMode('sub5')">- 5-Digit</button>
+        <button class="btn btn-orange" onclick="setMode('sub6')">- 6-Digit</button>
       </div>
       <div class="nav-buttons">
         <button class="btn btn-blue" onclick="setMode('mult2')">× 2-Digit</button>
         <button class="btn btn-blue" onclick="setMode('mult3')">× 3-Digit</button>
         <button class="btn btn-blue" onclick="setMode('mult4')">× 4-Digit</button>
+        <button class="btn btn-blue" onclick="setMode('mult5')">× 5-Digit</button>
+        <button class="btn btn-blue" onclick="setMode('mult6')">× 6-Digit</button>
       </div>
       <div class="nav-buttons">
         <button class="btn btn-green" onclick="setMode('div2')">÷ 2-Digit</button>
         <button class="btn btn-green" onclick="setMode('div3')">÷ 3-Digit</button>
         <button class="btn btn-green" onclick="setMode('div4')">÷ 4-Digit</button>
+        <button class="btn btn-green" onclick="setMode('div5')">÷ 5-Digit</button>
+        <button class="btn btn-green" onclick="setMode('div6')">÷ 6-Digit</button>
       </div>
 
       <!-- Column Math Interface -->
-      <div id="column-ui">
+      <div id="column-ui" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
         <div id="column-grid" class="grid-container"></div>
-        <button class="btn btn-check" onclick="checkAnswer()">Final Answer! ✅</button>
+        <button id="btn-check-ans" class="btn btn-check" onclick="checkAnswer()">Final Answer! ✅</button>
       </div>
 
       <!-- Helpful Assistant Box -->
@@ -354,13 +374,16 @@
     let isDivision = false;
     let numA = 0, numB = 0;
     
+    // Lock flag to prevent double clicking
+    let isProcessing = false;
+
     // Tracking Variables
     let stats = { stars: 0, correct: 0, wrong: 0 };
     let consecutiveWrongs = 0; 
     let currentProblemStr = "";
 
-    // Array of place values from right to left
-    const PLACE_NAMES = ['O', 'T', 'H', 'T', 'TT'];
+    // Place names ordered right to left (0 = Ones, 1 = Tens, ...)
+    const PLACE_NAMES = ['O', 'T', 'H', 'Th', 'TTh', 'HTh', 'M'];
 
     // Web Audio FX
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -393,6 +416,17 @@
       } catch(e) {}
     }
 
+    // Input sanitizer: strictly restricts allowed characters (blocks letters)
+    function attachInputSanitizer(input, type = 'number') {
+      input.addEventListener('input', function() {
+        if (type === 'number') {
+          this.value = this.value.replace(/[^0-9]/g, '');
+        } else if (type === 'cross') {
+          this.value = this.value.replace(/[^0-9/]/g, '');
+        }
+      });
+    }
+
     function updateStatsUI() {
       document.getElementById('stat-stars').innerText = stats.stars;
       document.getElementById('stat-correct').innerText = stats.correct;
@@ -409,6 +443,7 @@
     }
 
     function setMode(mode) {
+      if (isProcessing) return; // Prevent double clicking on mode buttons
       currentMode = mode;
       digitsCount = parseInt(mode.replace(/\D/g, ''), 10) || 2; 
       isSubtraction = mode.startsWith('sub');
@@ -441,8 +476,6 @@
       const grid = document.getElementById('column-grid');
       grid.innerHTML = '';
       
-      // Layout: [Space] [Divisor] [ ) ] [ Digits... ]
-      const cols = digitsCount + 2; 
       grid.style.gridTemplateColumns = `40px 20px repeat(${digitsCount}, 60px)`;
 
       // Row 1: Quotient Answer Boxes (Top)
@@ -453,8 +486,8 @@
         input.type = 'text';
         input.maxLength = 1;
         input.className = 'answer-input';
-        // Assign ID left to right
         input.id = `ans-div-${i}`;
+        attachInputSanitizer(input, 'number');
         input.addEventListener('input', function() { this.classList.remove('wrong-input'); });
         grid.appendChild(input);
       }
@@ -485,6 +518,7 @@
           workInput.maxLength = 2;
           workInput.className = 'exchange-box working-box';
           workInput.placeholder = "rem";
+          attachInputSanitizer(workInput, 'number');
           grid.appendChild(workInput);
         }
       }
@@ -527,8 +561,8 @@
       const cols = digitsCount + 1; 
       grid.style.gridTemplateColumns = `repeat(${cols}, 65px)`;
 
-      // Row 1: Headers
-      const allHeaders = ['TTh', 'Th', 'H', 'T', 'O'];
+      // Row 1: Place Value Headers
+      const allHeaders = ['M', 'HTh', 'TTh', 'Th', 'H', 'T', 'O'];
       const headers = allHeaders.slice(allHeaders.length - cols);
       headers.forEach(h => grid.appendChild(createCell(h, 'place-header')));
 
@@ -540,7 +574,11 @@
         carryInput.maxLength = 2;
         carryInput.className = 'exchange-box';
         carryInput.placeholder = isSubtraction ? "new" : "1";
-        carryInput.oninput = () => playSound('exchange');
+        attachInputSanitizer(carryInput, 'number');
+        carryInput.oninput = () => {
+          carryInput.value = carryInput.value.replace(/[^0-9]/g, '');
+          playSound('exchange');
+        };
         grid.appendChild(carryInput);
       }
 
@@ -553,6 +591,7 @@
           crossInput.maxLength = 1;
           crossInput.className = 'cross-box';
           crossInput.placeholder = "/";
+          attachInputSanitizer(crossInput, 'cross');
           grid.appendChild(crossInput);
         }
       }
@@ -578,7 +617,8 @@
         ansInput.type = 'text';
         ansInput.maxLength = 1;
         ansInput.className = 'answer-input';
-        ansInput.id = `ans-${cols - 1 - i}`; // IDs 0,1,2 right to left
+        ansInput.id = `ans-${cols - 1 - i}`; // IDs 0,1,2... right to left
+        attachInputSanitizer(ansInput, 'number');
         ansInput.addEventListener('input', function() { this.classList.remove('wrong-input'); });
         grid.appendChild(ansInput);
       }
@@ -588,7 +628,7 @@
       } else if (currentMode.startsWith('mult')) {
         document.getElementById('tutor-msg').innerHTML = `Multiply from right to left! Carry any tens to the top yellow boxes! 🚀`;
       } else {
-        document.getElementById('tutor-msg').innerHTML = `Start adding from the Ones to the last  Write any carried numbers in the top yellow boxes! 📦 after 3 goes you get a hint`;
+        document.getElementById('tutor-msg').innerHTML = `Start adding from the Ones column! Write any carried numbers in the top yellow boxes! 📦`;
       }
     }
 
@@ -600,6 +640,13 @@
     }
 
     function checkAnswer() {
+      // Guard against double clicking
+      if (isProcessing) return;
+      isProcessing = true;
+
+      const checkBtn = document.getElementById('btn-check-ans');
+      checkBtn.disabled = true;
+
       let expected;
       if (isDivision) { expected = numA / numB; } 
       else if (isSubtraction) { expected = numA - numB; } 
@@ -627,12 +674,14 @@
 
       if (!hasInput) {
         document.getElementById('tutor-msg').innerHTML = "Don't forget to type in your answer before checking! 🤔";
+        isProcessing = false;
+        checkBtn.disabled = false;
         return;
       }
 
       const userAnsNum = parseInt(userAnsStr, 10);
 
-      // Check if mathematically correct (this allows for correctly placed leading zeros)
+      // Check if mathematically correct
       if (userAnsNum === expected) {
         playSound('correct');
         stats.stars += 10;
@@ -643,6 +692,8 @@
         document.getElementById('tutor-msg').innerText = "Super star work! Fantastic calculation! 🌟";
         setTimeout(() => {
           isDivision ? generateDivisionProblem() : generateColumnProblem();
+          isProcessing = false;
+          checkBtn.disabled = false;
         }, 1800);
         return;
       }
@@ -654,14 +705,12 @@
       consecutiveWrongs++;
       updateStatsUI();
 
-      // Find exactly which columns are wrong
       let wrongPlaces = [];
       let formattedUserAns = "";
-      
       let expStr = expected.toString();
       
       if (isDivision) {
-         let paddedExp = expStr.padStart(digitsCount, ' '); // Match grid width
+         let paddedExp = expStr.padStart(digitsCount, ' ');
          for (let i = 0; i < digitsCount; i++) {
             let uInput = document.getElementById(`ans-div-${i}`);
             let uVal = uInput.value.trim();
@@ -672,9 +721,8 @@
             
             if (uVal !== expChar && !isZeroSpaceEquivalent) {
                 uInput.classList.add('wrong-input');
-                // Calculate Place Value index (from right to left)
                 let placeIndex = digitsCount - 1 - i;
-                wrongPlaces.push(PLACE_NAMES[placeIndex]);
+                wrongPlaces.push(PLACE_NAMES[placeIndex] || `Col ${placeIndex + 1}`);
             } else {
                 uInput.classList.remove('wrong-input');
             }
@@ -686,9 +734,6 @@
             let uVal = uInput.value.trim();
             formattedUserAns += uVal === '' ? '_' : uVal;
 
-            // Grid array index i is from right to left (0 is Ones, 1 is Tens)
-            // But paddedExp is a normal string (left to right). 
-            // The character index in paddedExp is (cols - 1 - i)
             let expCharIndex = cols - 1 - i;
             let expChar = paddedExp[expCharIndex];
             
@@ -696,7 +741,7 @@
 
             if (uVal !== expChar && !isZeroSpaceEquivalent) {
                 uInput.classList.add('wrong-input');
-                wrongPlaces.push(PLACE_NAMES[i]);
+                wrongPlaces.push(PLACE_NAMES[i] || `Col ${i + 1}`);
             } else {
                 uInput.classList.remove('wrong-input');
             }
@@ -707,8 +752,7 @@
       if (formattedUserAns === '') formattedUserAns = '0';
       addToHistory(`${currentProblemStr} = ${formattedUserAns} ❌`, true);
 
-      // Generate the dynamic Hint
-      wrongPlaces = [...new Set(wrongPlaces)].reverse(); // Deduplicate and order left-to-right
+      wrongPlaces = [...new Set(wrongPlaces)].reverse();
 
       let hintText = `💡 <b>Hint:</b> Check the red boxes! You have mistakes in the <b>${wrongPlaces.join(' and ')}</b> column(s).<br>`;
       
@@ -722,6 +766,12 @@
       }
 
       document.getElementById('tutor-msg').innerHTML = hintText;
+      
+      // Re-enable for retry after short debounce
+      setTimeout(() => {
+        isProcessing = false;
+        checkBtn.disabled = false;
+      }, 400);
     }
 
     // Initialize
